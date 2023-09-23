@@ -35,8 +35,8 @@ func run(out io.Writer) error {
 	router := httprouter.New()
 	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		w.Header().Set("content-type", "text/text; charset=utf-8")
-		fmt.Fprint(w, "/calendar/myschedule")
-		fmt.Fprint(w, "/calendar/myschedule/:member")
+		fmt.Fprint(w, "/myschedule")
+		fmt.Fprint(w, "/myschedule/:member")
 		fmt.Fprint(w, "/calendar/:team/:schedule/:member")
 	})
 
@@ -48,13 +48,13 @@ func run(out io.Writer) error {
 	// return a combined calendar which contains all schedules of all teams
 	// where the user identified by the ZIOS_USERNAME env variable is part
 	// of. Only events which contain the user as attendee will be kept.
-	router.GET("/calendar/myschedule", myScheduleHandler(z, func(_ httprouter.Params) string { return username }))
+	router.GET("/myschedule", myScheduleHandler(z, func(_ httprouter.Params) string { return username }))
 
 	// return a combined calendar which contains all schedules of all teams
 	// where the user identified by the "member" parameter (needs to be an
 	// email address) is part of. Only events which contain that user as
 	// attendee will be kept.
-	router.GET("/calendar/myschedule/:member", myScheduleHandler(z, func(ps httprouter.Params) string { return ps.ByName("member") }))
+	router.GET("/myschedule/:member", myScheduleHandler(z, func(ps httprouter.Params) string { return ps.ByName("member") }))
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%v", port),

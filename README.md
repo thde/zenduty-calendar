@@ -12,7 +12,7 @@ UUIDs of the corresponding zenduty team and schedule. The passed ":member" needs
 to be an email address of the zenduty user for whom events should be retained.
 
 ```
-/calendar/myschedule
+/myschedule
 ```
 
 Returns a combined ICS calendar from all zenduty schedules where the logged in
@@ -20,7 +20,7 @@ user (`ZENDUTY_USERNAME` env variable) is part of. Only events for the logged in
 user will be retained.
 
 ```
-/calendar/myschedule/:member
+/myschedule/:member
 ```
 
 Similar to the above endpoint, but the the combined schedule will be created for

@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"time"
 
-	ics "github.com/arran4/golang-ical"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/exp/slog"
 
@@ -19,33 +16,19 @@ import (
 var (
 	username = os.Getenv("ZENDUTY_USERNAME")
 	password = os.Getenv("ZENDUTY_PASSWORD")
-	port = os.Getenv("PORT")
+	port     = os.Getenv("PORT")
 )
 
-func run(stdout io.Writer) error {
-	logger := slog.New(slog.NewTextHandler(stdout, nil))
-
+func run(out io.Writer) error {
 	if len(port) == 0 {
 		port = "3000"
 	}
 
-	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	u, err := url.Parse("https://www.zenduty.com")
-	if err != nil {
-		return err
-	}
-
-	z := zenduty.Client{
-		BaseURL:    u,
-		HTTPCLient: httpClient,
-		Logger:     logger.With("pkg", "zenduty"),
-	}
-
-	err = z.Login(username, password)
-	if err != nil {
+	loggerOpts := zenduty.LoggerOptions{}
+	loggerOpts.Out = out
+	logger := zenduty.NewLogger(loggerOpts)
+	z := zenduty.NewClient(zenduty.Logger(logger))
+	if err := z.Login(username, password); err != nil {
 		return err
 	}
 
@@ -54,7 +37,22 @@ func run(stdout io.Writer) error {
 		w.Header().Set("content-type", "text/text; charset=utf-8")
 		fmt.Fprint(w, "/calendar/:team/:schedule/:member")
 	})
+
+	// return a specific schedule identified by the given team and schedule
+	// UUID. Only events attended by the given member (needs to be an email
+	// address) will be kept.
 	router.GET("/calendar/:team/:schedule/:member", byAtendeeHandler("team", "schedule", "member", z.GetSchedule))
+
+	// return a combined calendar which contains all schedules of all teams
+	// where the user identified by the ZIOS_USERNAME env variable is part
+	// of. Only events which contain the user as attendee will be kept.
+	router.GET("/calendar/myschedule", myScheduleHandler(z, func(_ httprouter.Params) string { return username }))
+
+	// return a combined calendar which contains all schedules of all teams
+	// where the user identified by the "member" parameter (needs to be an
+	// email address) is part of. Only events which contain that user as
+	// attendee will be kept.
+	router.GET("/calendar/myschedule/:member", myScheduleHandler(z, func(ps httprouter.Params) string { return ps.ByName("member") }))
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%v", port),
@@ -69,7 +67,7 @@ func run(stdout io.Writer) error {
 	return server.ListenAndServe()
 }
 
-func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(teamID string, scheduleID string, months int) (io.ReadCloser, error))  httprouter.Handle {
+func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(teamID string, scheduleID string, months int) (*zenduty.Schedule, error)) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		schedule, err := getSchedule(ps.ByName(teamKey), ps.ByName(scheduleKey), 12)
 		if err != nil {
@@ -77,36 +75,26 @@ func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(t
 			w.Write([]byte(err.Error()))
 			return
 		}
-		defer schedule.Close()
+		outputSchedule(w, schedule.OnlyAttendees(ps.ByName(memberKey)))
+	}
+}
 
-		cal, err := ics.ParseCalendar(schedule)
+func myScheduleHandler(c *zenduty.Client, forUser func(httprouter.Params) string) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		schedule, err := c.CombinedSchedule(forUser(ps))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))
 			return
 		}
-
-		w.Header().Set("content-type", "text/calendar; charset=utf-8")
-		w.Header().Set("cache-control", fmt.Sprintf("max-age=%d, public", 5*60))
-		filter(cal, ics.ComponentPropertyAttendee, ps.ByName(memberKey)).SerializeTo(w)
+		outputSchedule(w, schedule.OnlyAttendees(forUser(ps)))
 	}
 }
 
-func filter(in *ics.Calendar, prop ics.ComponentProperty, substr string) *ics.Calendar {
-	out := *in
-	out.Components = []ics.Component{}
-
-	substr = strings.ToLower(substr)
-
-	for _, event := range in.Events() {
-		property := event.GetProperty(prop).Value
-
-		if contains(property, substr) {
-			out.AddVEvent(event)
-		}
-	}
-
-	return &out
+func outputSchedule(w http.ResponseWriter, schedule *zenduty.Schedule) {
+	w.Header().Set("content-type", "text/calendar; charset=utf-8")
+	w.Header().Set("cache-control", fmt.Sprintf("max-age=%d, public", 5*60))
+	schedule.SerializeTo(w)
 }
 
 func withHttpLog(logger *slog.Logger) func(http.Handler) http.Handler {
@@ -118,12 +106,6 @@ func withHttpLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func contains(s string, substr string) bool {
-	s = strings.ToLower(s)
-	substr = strings.ToLower(substr)
-	return strings.Contains(s, substr)
 }
 
 func main() {

@@ -35,6 +35,8 @@ func run(out io.Writer) error {
 	router := httprouter.New()
 	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		w.Header().Set("content-type", "text/text; charset=utf-8")
+		fmt.Fprint(w, "/calendar/myschedule")
+		fmt.Fprint(w, "/calendar/myschedule/:member")
 		fmt.Fprint(w, "/calendar/:team/:schedule/:member")
 	})
 

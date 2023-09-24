@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>zenduty-calendar</title>
+</head>
+<body>
+	<p>The following endpoints are available</p>
+	<p>
+		<ul>
+			<li>
+				<p>
+					<strong>/myschedule</strong>
+				</p>
+				<p>
+					returns a combined calendar which contains all schedules of all teams
+					where the user identified by the ZIOS_USERNAME env variable is part
+					of. Only events which contain the user as attendee will be kept.
+				</p>
+			</li>
+			<li>
+				<p>
+					<strong>/myschedule/:member</strong>
+				</p>
+				<p>
+					returns a combined calendar which contains all schedules of all teams
+					where the user identified by the ":member" parameter is part of. The
+					":member" parameter needs to be an email address identifying the member.
+					Only events which contain the member as attendee will be kept.
+				</p>
+			</li>
+			<li>
+				<p>
+					<strong>/calendar/:team/:schedule/:member</strong>
+				</p>
+				<p>
+					returns a specific schedule identified by the given ":team" and ":schedule:
+					parameters. They need to be the zenduty UUIDs identyfing the corresponding team
+					and schedule. Only events attended by the given ":member" parameter will be
+					kept. The ":member" parameter needs to be an email address identifying the
+					zenduty user.
+				</p>
+			</li>
+		</ul>
+	</p>
+</body>
+</html>

@@ -10,6 +10,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/exp/slog"
 
+	_ "embed"
+
 	"github.com/thde/zenduty-calendar/internal/zenduty"
 )
 
@@ -17,6 +19,9 @@ var (
 	username = os.Getenv("ZENDUTY_USERNAME")
 	password = os.Getenv("ZENDUTY_PASSWORD")
 	port     = os.Getenv("PORT")
+
+	//go:embed index.html
+	index string
 )
 
 func run(out io.Writer) error {
@@ -34,23 +39,21 @@ func run(out io.Writer) error {
 
 	router := httprouter.New()
 	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		w.Header().Set("content-type", "text/text; charset=utf-8")
-		fmt.Fprint(w, "/myschedule")
-		fmt.Fprint(w, "/myschedule/:member")
-		fmt.Fprint(w, "/calendar/:team/:schedule/:member")
+		w.Header().Set("content-type", "text/html; charset=utf-8")
+		fmt.Fprint(w, index)
 	})
 
-	// return a specific schedule identified by the given team and schedule
+	// returns a specific schedule identified by the given team and schedule
 	// UUID. Only events attended by the given member (needs to be an email
 	// address) will be kept.
 	router.GET("/calendar/:team/:schedule/:member", byAtendeeHandler("team", "schedule", "member", z.GetSchedule))
 
-	// return a combined calendar which contains all schedules of all teams
+	// returns a combined calendar which contains all schedules of all teams
 	// where the user identified by the ZIOS_USERNAME env variable is part
 	// of. Only events which contain the user as attendee will be kept.
 	router.GET("/myschedule", myScheduleHandler(z, func(_ httprouter.Params) string { return username }))
 
-	// return a combined calendar which contains all schedules of all teams
+	// returns a combined calendar which contains all schedules of all teams
 	// where the user identified by the "member" parameter (needs to be an
 	// email address) is part of. Only events which contain that user as
 	// attendee will be kept.

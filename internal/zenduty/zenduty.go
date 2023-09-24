@@ -147,7 +147,7 @@ func (c *Client) do(req *http.Request, obj interface{}) error {
 		break
 	}
 
-	c.logger.Info("request", "req", req)
+	c.logger.Debug("request", "req", req)
 	res, err := c.http.Do(req)
 	if err != nil {
 		return err

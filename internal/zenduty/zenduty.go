@@ -13,6 +13,7 @@ import (
 	"time"
 
 	ics "github.com/arran4/golang-ical"
+	"golang.org/x/exp/slices"
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/publicsuffix"
 )
@@ -68,6 +69,8 @@ func NewLogger(options LoggerOptions) *slog.Logger {
 	return slog.New(slog.NewTextHandler(output, &options.HandlerOptions)).With("pkg", "zenduty")
 }
 
+// NewClient returns a new zenduty client which can be modified by passing
+// options
 func NewClient(opts ...ClientOption) *Client {
 	c := &Client{
 		baseURL: defaultBaseURL(),
@@ -213,7 +216,7 @@ type Schedule struct {
 
 // Filter filters the schedule based on the given property and value function
 func (s *Schedule) filter(prop ics.ComponentProperty, valueFilter func(value string) bool) *Schedule {
-	out := *s
+	out := *s.Calendar
 	out.Components = []ics.Component{}
 
 	for _, event := range s.Events() {
@@ -221,7 +224,17 @@ func (s *Schedule) filter(prop ics.ComponentProperty, valueFilter func(value str
 			out.AddVEvent(event)
 		}
 	}
-	return &out
+	return &Schedule{Calendar: &out}
+}
+
+// ContainsEventID returns true if the schedule contains the given event ID.
+// Otherwise it returns false.
+func (s *Schedule) ContainsEventID(id string) bool {
+	ids := make([]string, len(s.Events()))
+	for i, event := range s.Events() {
+		ids[i] = event.Id()
+	}
+	return slices.Contains(ids, id)
 }
 
 // OnlyAttendees keeps only the events where at least one of the given emails

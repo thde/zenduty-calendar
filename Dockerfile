@@ -1,23 +1,23 @@
 # syntax=docker/dockerfile:1
+FROM golang:1-alpine AS builder
 
-FROM golang:1.20
+RUN apk add -U git ca-certificates && update-ca-certificates
 
-# Set destination for COPY
-WORKDIR /app
-
-# Download Go modules
+WORKDIR /usr/local/src/zenduty-calendar
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download -x
+COPY . .
 
-# Copy the source code. Note the slash at the end, as explained in
-# https://docs.docker.com/engine/reference/builder/#copy
-COPY *.go *.html ./
-ADD internal ./internal
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o /usr/local/bin/zenduty-calendar
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /zenduty-calendar
+FROM alpine:latest
+USER "guest"
+
+WORKDIR /tmp
+HEALTHCHECK CMD wget -U "Healthcheck" --quiet --tries=1 --spider http://localhost:3000/metrics || exit 1
+
+COPY --from=builder /usr/local/bin/zenduty-calendar /usr/local/bin/zenduty-calendar
 
 EXPOSE 3000
 
-# Run
-CMD ["/zenduty-calendar"]
+ENTRYPOINT ["/usr/local/bin/zenduty-calendar"]

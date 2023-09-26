@@ -14,7 +14,6 @@ FROM alpine:latest
 USER "guest"
 
 WORKDIR /tmp
-HEALTHCHECK CMD wget -U "Healthcheck" --quiet --tries=1 --spider http://localhost:3000/metrics || exit 1
 
 COPY --from=builder /usr/local/bin/zenduty-calendar /usr/local/bin/zenduty-calendar
 

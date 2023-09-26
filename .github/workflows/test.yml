@@ -35,3 +35,4 @@ jobs:
           install-go: false
       - run: go test -v ./... -race -bench=. -benchmem -cover -coverprofile cover.out 2>&1 | tee test.out
       - run: go tool cover -func cover.out
+      - uses: wagoid/commitlint-github-action@v5

@@ -3,7 +3,7 @@
 Exposes a Zenduty schedule as an ICS calendar. Multiple endpoints are possible:
 
 ```
-/calendar/:team/:schedule/:member
+/calendar/:teamUUID/:scheduleUUID/:memberEmail
 ```
 
 Return the specific zenduty team schedule as an ICS calendar. Only keep events

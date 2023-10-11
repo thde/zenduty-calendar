@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,10 +34,10 @@ func run(out io.Writer) error {
 	loggerOpts.Out = out
 	logger := zenduty.NewLogger(loggerOpts)
 	z := zenduty.NewClient(
-		func() (string, string) { return username, password },
+		func(context.Context) (string, string) { return username, password },
 		zenduty.Logger(logger),
 	)
-	if err := z.Login(); err != nil {
+	if err := z.Login(context.Background()); err != nil {
 		return err
 	}
 
@@ -75,9 +76,9 @@ func run(out io.Writer) error {
 	return server.ListenAndServe()
 }
 
-func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(teamID string, scheduleID string, months int) (*zenduty.Schedule, error)) httprouter.Handle {
+func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(ctx context.Context, teamID string, scheduleID string, months int) (*zenduty.Schedule, error)) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		schedule, err := getSchedule(ps.ByName(teamKey), ps.ByName(scheduleKey), 12)
+		schedule, err := getSchedule(r.Context(), ps.ByName(teamKey), ps.ByName(scheduleKey), 12)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))
@@ -89,7 +90,7 @@ func byAtendeeHandler(teamKey, scheduleKey, memberKey string, getSchedule func(t
 
 func myScheduleHandler(c *zenduty.Client, forUser func(httprouter.Params) string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		schedule, err := c.CombinedSchedule(forUser(ps))
+		schedule, err := c.CombinedSchedule(r.Context(), forUser(ps))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))

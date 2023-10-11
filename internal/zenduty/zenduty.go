@@ -2,6 +2,7 @@ package zenduty
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ const (
 )
 
 type Client struct {
-	credentials func() (username string, password string)
+	credentials func(context.Context) (username string, password string)
 	http        *http.Client
 	baseURL     *url.URL
 	logger      *slog.Logger
@@ -72,7 +73,7 @@ func NewLogger(options LoggerOptions) *slog.Logger {
 
 // NewClient returns a new zenduty client which can be modified by passing
 // options
-func NewClient(credentials func() (string, string), opts ...ClientOption) *Client {
+func NewClient(credentials func(context.Context) (string, string), opts ...ClientOption) *Client {
 	c := &Client{
 		credentials: credentials,
 		baseURL:     defaultBaseURL(),
@@ -102,7 +103,7 @@ func Logger(logger *slog.Logger) ClientOption {
 }
 
 // Login executes a login with the given username and password
-func (c *Client) Login() error {
+func (c *Client) Login(ctx context.Context) error {
 	if c.http.Jar == nil {
 		jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 		if err != nil {
@@ -120,7 +121,7 @@ func (c *Client) Login() error {
 		return fmt.Errorf("error getting login page")
 	}
 
-	username, password := c.credentials()
+	username, password := c.credentials(ctx)
 	body := new(bytes.Buffer)
 	if err := json.NewEncoder(body).Encode(loginRequest{Email: username, Password: password}); err != nil {
 		return fmt.Errorf("can not encode login body: %w", err)
@@ -150,7 +151,7 @@ func (c *Client) doLoggedIn(req *http.Request, obj interface{}) error {
 	}
 
 	if !c.isLoggedIn() {
-		err := c.Login()
+		err := c.Login(req.Context())
 		if err != nil {
 			return err
 		}
@@ -299,9 +300,9 @@ func newScheduleFrom(data io.Reader) (*Schedule, error) {
 	return &Schedule{Calendar: cal}, nil
 }
 
-func (c *Client) listTeams() (teamList, error) {
+func (c *Client) listTeams(ctx context.Context) (teamList, error) {
 	url := fmt.Sprintf("%s/api/account/teams", c.baseURL)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("can't create request to list teams: %w", err)
 	}
@@ -312,9 +313,9 @@ func (c *Client) listTeams() (teamList, error) {
 	return teamsResp, nil
 }
 
-func (c *Client) listSchedules(teamID string) ([]apiSchedule, error) {
+func (c *Client) listSchedules(ctx context.Context, teamID string) ([]apiSchedule, error) {
 	url := fmt.Sprintf("%s/api/account/teams/%s/schedules", c.baseURL, teamID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request for listing team schedules: %w", err)
 	}
@@ -328,20 +329,20 @@ func (c *Client) listSchedules(teamID string) ([]apiSchedule, error) {
 
 // CombinedSchedule returns the full combined schedule of all team schedules where the given
 // user email is part of
-func (c *Client) CombinedSchedule(email string) (*Schedule, error) {
-	teams, err := c.listTeams()
+func (c *Client) CombinedSchedule(ctx context.Context, email string) (*Schedule, error) {
+	teams, err := c.listTeams(ctx)
 	if err != nil {
 		return nil, err
 	}
 	teamsOfUser := teams.teamsForUser(email)
 	combined := ics.NewCalendarFor("zenduty-oncall")
 	for _, team := range teamsOfUser {
-		schedules, err := c.listSchedules(team.ID)
+		schedules, err := c.listSchedules(ctx, team.ID)
 		if err != nil {
 			return nil, err
 		}
 		for _, schedule := range schedules {
-			calendar, err := c.GetSchedule(team.ID, schedule.ID, amountMonths)
+			calendar, err := c.GetSchedule(ctx, team.ID, schedule.ID, amountMonths)
 			if err != nil {
 				return nil, err
 			}
@@ -361,9 +362,9 @@ func (c *Client) CombinedSchedule(email string) (*Schedule, error) {
 	return &Schedule{Calendar: combined}, nil
 }
 
-func (c *Client) GetSchedule(teamID, scheduleID string, months int) (*Schedule, error) {
+func (c *Client) GetSchedule(ctx context.Context, teamID, scheduleID string, months int) (*Schedule, error) {
 	url := fmt.Sprintf("%s/api/account/teams/%s/schedules/%s/get_schedule_ics/?months=%d&is_team_or_user=1", c.baseURL, teamID, scheduleID, months)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request schedule %q of team %q: %w", scheduleID, teamID, err)
 	}

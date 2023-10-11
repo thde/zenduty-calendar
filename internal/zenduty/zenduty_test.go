@@ -6,11 +6,13 @@ import (
 	"time"
 
 	ics "github.com/arran4/golang-ical"
-	"github.com/stretchr/testify/require"
+	"github.com/matryer/is"
 	"golang.org/x/exp/slog"
 )
 
 func TestICS(t *testing.T) {
+	is := is.New(t)
+
 	username, password := os.Getenv("ZENDUTY_USERNAME"), os.Getenv("ZENDUTY_PASSWORD")
 	if username == "" || password == "" {
 		t.Skip("no ZENDUTY_USERNAME or ZENDUTY_PASSWORD env variable set")
@@ -26,16 +28,18 @@ func TestICS(t *testing.T) {
 		func() (string, string) { return username, password },
 		Logger(logger),
 	)
-	require.NoError(t, z.Login())
+	is.NoErr(z.Login())
 
 	calendar, err := z.CombinedSchedule(username)
-	require.NoError(t, err)
+	is.NoErr(err)
 	calendar = calendar.OnlyAttendees(username)
-	require.True(t, len(calendar.Events()) > 0)
+	is.True(len(calendar.Events()) > 0)
 	logger.Debug("my schedule", "content", calendar.Serialize())
 }
 
 func TestOnlyAttendees(t *testing.T) {
+	is := is.New(t)
+
 	for name, testCase := range map[string]struct {
 		schedule    *Schedule
 		emails      []string
@@ -111,9 +115,9 @@ func TestOnlyAttendees(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			testCase := testCase
 			schedule := testCase.schedule.OnlyAttendees(testCase.emails...)
-			require.Len(t, schedule.Events(), len(testCase.expectedIDs))
+			is.True(len(schedule.Events()) == len(testCase.expectedIDs))
 			for _, id := range testCase.expectedIDs {
-				require.True(t, schedule.ContainsEventID(id), "did not find ID %s in events", id)
+				is.True(schedule.ContainsEventID(id))
 			}
 		})
 	}

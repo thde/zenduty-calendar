@@ -24,9 +24,10 @@ const (
 )
 
 type Client struct {
-	http    *http.Client
-	baseURL *url.URL
-	logger  *slog.Logger
+	credentials func() (username string, password string)
+	http        *http.Client
+	baseURL     *url.URL
+	logger      *slog.Logger
 }
 
 type loginRequest struct {
@@ -71,11 +72,12 @@ func NewLogger(options LoggerOptions) *slog.Logger {
 
 // NewClient returns a new zenduty client which can be modified by passing
 // options
-func NewClient(opts ...ClientOption) *Client {
+func NewClient(credentials func() (string, string), opts ...ClientOption) *Client {
 	c := &Client{
-		baseURL: defaultBaseURL(),
-		http:    defaultHTTPClient(),
-		logger:  NewLogger(LoggerOptions{}),
+		credentials: credentials,
+		baseURL:     defaultBaseURL(),
+		http:        defaultHTTPClient(),
+		logger:      NewLogger(LoggerOptions{}),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -85,14 +87,14 @@ func NewClient(opts ...ClientOption) *Client {
 
 type ClientOption func(c *Client)
 
-// BaseURL sets the base URL of the zenduty client
+// BaseURL sets the base URL of the Zenduty client
 func BaseURL(u *url.URL) ClientOption {
 	return func(c *Client) {
 		c.baseURL = u
 	}
 }
 
-// Logger sets the logger of the zenduty client
+// Logger sets the logger of the Zenduty client
 func Logger(logger *slog.Logger) ClientOption {
 	return func(c *Client) {
 		c.logger = logger
@@ -100,7 +102,7 @@ func Logger(logger *slog.Logger) ClientOption {
 }
 
 // Login executes a login with the given username and password
-func (c *Client) Login(username, password string) error {
+func (c *Client) Login() error {
 	if c.http.Jar == nil {
 		jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 		if err != nil {
@@ -118,6 +120,7 @@ func (c *Client) Login(username, password string) error {
 		return fmt.Errorf("error getting login page")
 	}
 
+	username, password := c.credentials()
 	body := new(bytes.Buffer)
 	if err := json.NewEncoder(body).Encode(loginRequest{Email: username, Password: password}); err != nil {
 		return fmt.Errorf("can not encode login body: %w", err)
@@ -136,10 +139,45 @@ func (c *Client) Login(username, password string) error {
 	return nil
 }
 
+func (c *Client) doLoggedIn(req *http.Request, obj interface{}) error {
+	if c.http.Jar == nil {
+		jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+		if err != nil {
+			return fmt.Errorf("jar init error: %w", err)
+		}
+
+		c.http.Jar = jar
+	}
+
+	if !c.isLoggedIn() {
+		err := c.Login()
+		if err != nil {
+			return err
+		}
+	}
+
+	return c.do(req, obj)
+}
+
+func (c *Client) isLoggedIn() bool {
+	for _, cookie := range c.http.Jar.Cookies(c.baseURL) {
+		if cookie.Name != "sessionid" {
+			continue
+		}
+
+		if cookie.Expires.Before(time.Now()) {
+			return false
+		}
+
+		return true
+	}
+
+	return false
+}
+
 func (c *Client) do(req *http.Request, obj interface{}) error {
 	req.Header.Set("content-type", "application/json")
-	cookies := c.http.Jar.Cookies(c.baseURL)
-	for _, cookie := range cookies {
+	for _, cookie := range c.http.Jar.Cookies(c.baseURL) {
 		if cookie.Name != "csrftoken" {
 			continue
 		}
@@ -268,7 +306,7 @@ func (c *Client) listTeams() (teamList, error) {
 		return nil, fmt.Errorf("can't create request to list teams: %w", err)
 	}
 	teamsResp := []team{}
-	if err := c.do(req, &teamsResp); err != nil {
+	if err := c.doLoggedIn(req, &teamsResp); err != nil {
 		return nil, fmt.Errorf("can't list teams: %w", err)
 	}
 	return teamsResp, nil
@@ -282,7 +320,7 @@ func (c *Client) listSchedules(teamID string) ([]apiSchedule, error) {
 	}
 
 	scheduleList := []apiSchedule{}
-	if err := c.do(req, &scheduleList); err != nil {
+	if err := c.doLoggedIn(req, &scheduleList); err != nil {
 		return nil, fmt.Errorf("error when listing schedules of team with ID %s: %w", teamID, err)
 	}
 	return scheduleList, nil
@@ -330,7 +368,7 @@ func (c *Client) GetSchedule(teamID, scheduleID string, months int) (*Schedule, 
 		return nil, fmt.Errorf("error creating request schedule %q of team %q: %w", scheduleID, teamID, err)
 	}
 	body := scheduleICSResponse{}
-	if err := c.do(req, &body); err != nil {
+	if err := c.doLoggedIn(req, &body); err != nil {
 		return nil, fmt.Errorf("error requesting schedule %q of team %q: %w", scheduleID, teamID, err)
 	}
 	res, err := c.http.Get(body.URL)

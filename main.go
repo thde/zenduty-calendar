@@ -32,8 +32,11 @@ func run(out io.Writer) error {
 	loggerOpts := zenduty.LoggerOptions{}
 	loggerOpts.Out = out
 	logger := zenduty.NewLogger(loggerOpts)
-	z := zenduty.NewClient(zenduty.Logger(logger))
-	if err := z.Login(username, password); err != nil {
+	z := zenduty.NewClient(
+		func() (string, string) { return username, password },
+		zenduty.Logger(logger),
+	)
+	if err := z.Login(); err != nil {
 		return err
 	}
 

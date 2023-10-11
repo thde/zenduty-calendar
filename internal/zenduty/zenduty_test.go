@@ -22,8 +22,11 @@ func TestICS(t *testing.T) {
 	// one
 	// options.Level = slog.LevelDebug
 	logger := NewLogger(options)
-	z := NewClient(Logger(logger))
-	require.NoError(t, z.Login(username, password))
+	z := NewClient(
+		func() (string, string) { return username, password },
+		Logger(logger),
+	)
+	require.NoError(t, z.Login())
 
 	calendar, err := z.CombinedSchedule(username)
 	require.NoError(t, err)

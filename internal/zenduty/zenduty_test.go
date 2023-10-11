@@ -1,6 +1,7 @@
 package zenduty
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -25,12 +26,12 @@ func TestICS(t *testing.T) {
 	// options.Level = slog.LevelDebug
 	logger := NewLogger(options)
 	z := NewClient(
-		func() (string, string) { return username, password },
+		func(context.Context) (string, string) { return username, password },
 		Logger(logger),
 	)
-	is.NoErr(z.Login())
+	is.NoErr(z.Login(context.Background()))
 
-	calendar, err := z.CombinedSchedule(username)
+	calendar, err := z.CombinedSchedule(context.Background(), username)
 	is.NoErr(err)
 	calendar = calendar.OnlyAttendees(username)
 	is.True(len(calendar.Events()) > 0)

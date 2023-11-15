@@ -113,7 +113,8 @@ func (c *Client) Login(ctx context.Context) error {
 		c.http.Jar = jar
 	}
 
-	res, err := c.http.Get(fmt.Sprintf("%s/login/", c.baseURL))
+	loginURL := fmt.Sprintf("%s/login/", c.baseURL)
+	res, err := c.http.Get(loginURL)
 	if err != nil {
 		return fmt.Errorf("error getting login page: %w", err)
 	}
@@ -131,6 +132,8 @@ func (c *Client) Login(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error creating login request: %w", err)
 	}
+	req.Header.Set("Referer", loginURL)
+
 	resp := &loginResponse{}
 	if err = c.do(req, resp); err != nil {
 		return fmt.Errorf("error logging in: %w", err)

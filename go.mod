@@ -7,7 +7,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/matryer/is v1.4.1
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/net v0.18.0
+	golang.org/x/net v0.19.0
 )
 
 require github.com/stretchr/testify v1.8.4 // indirect

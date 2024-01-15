@@ -1,3 +1,7 @@
+# Deprecated
+
+Zenduty added support for [subscribing to an ICS calendar](https://docs.zenduty.com/docs/my-on-call#apple-calender).
+
 # zenduty-calendar
 
 Exposes a Zenduty schedule as an ICS calendar. Multiple endpoints are possible:
